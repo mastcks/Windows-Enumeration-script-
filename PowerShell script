@@ -1,0 +1,211 @@
+# PowerShell Enumeration Script
+
+# Initialize arrays to store the data
+$userData = @()
+$processData = @()
+$osData = @()
+$networkData = @()
+$firewallData = @()
+$groupMembershipData = @()
+$passwordPolicyData = @()
+$mountedDrivesData = @()
+$fileSharesData = @()
+
+# User Enumeration
+Write-Output "=== User Enumeration ==="
+try {
+    $users = Get-LocalUser
+    foreach ($user in $users) {
+        $userData += [PSCustomObject]@{
+            UserName         = $user.Name
+            Enabled          = $user.Enabled
+            LastLogon        = $user.LastLogon
+            PasswordLastSet  = $user.PasswordLastSet
+            PasswordExpires  = $user.PasswordExpires
+            Description      = $user.Description
+        }
+    }
+} catch {
+    Write-Output "Error retrieving local users: $_"
+}
+
+# Process Listing
+Write-Output "=== Process Listing ==="
+try {
+    $processes = Get-Process
+    foreach ($process in $processes) {
+        $processData += [PSCustomObject]@{
+            ProcessName  = $process.Name
+            ProcessID    = $process.Id
+            CPU          = $process.CPU
+            Memory       = $process.WorkingSet
+            Path         = $process.Path
+        }
+    }
+} catch {
+    Write-Output "Error retrieving processes: $_"
+}
+
+# OS Version Information 
+Write-Output "=== OS Version ==="
+try {
+    $os = Get-WmiObject -Class Win32_OperatingSystem
+    $osData += [PSCustomObject]@{
+        OSName        = $os.Caption
+        Version       = $os.Version
+        BuildNumber   = $os.BuildNumber
+        Architecture  = $os.OSArchitecture
+        InstallDate   = $os.InstallDate
+        LastBootUpTime= $os.LastBootUpTime
+    }
+} catch {
+    Write-Output "Error retrieving OS Information: $_"
+}          
+
+# Network Information 
+Write-Output "=== Network Information ==="
+try {
+    # IP Configuration
+    $ipconfig = ipconfig /all
+    $networkData += [PSCustomObject]@{
+        IPConfig = $ipconfig
+    }
+
+    # Network Interfaces
+    $netAdapters = Get-NetAdapter
+    foreach ($adapter in $netAdapters) {
+        $networkData += [PSCustomObject]@{
+            AdapterName = $adapter.Name
+            Status      = $adapter.Status
+            MACAddress  = $adapter.MacAddress
+            LinkSpeed   = $adapter.LinkSpeed
+        }
+    }
+
+    # Active Network Connections
+    $netConnections = Get-NetTCPConnection
+    foreach ($connection in $netConnections) {
+        $networkData += [PSCustomObject]@{
+            LocalAddress  = "$($connection.LocalAddress):$($connection.LocalPort)"
+            RemoteAddress = "$($connection.RemoteAddress):$($connection.RemotePort)"
+            State         = $connection.State
+        }
+    }
+
+    # Network Shares
+    $shares = Get-SmbShare
+    foreach ($share in $shares) {
+        $networkData += [PSCustomObject]@{
+            ShareName    = $share.Name
+            Path         = $share.Path
+            Description  = $share.Description
+        }
+    }
+} catch {
+    Write-Output "Error retrieving network information: $_"
+}
+
+# Firewall Rules
+Write-Output "=== Firewall Rules ==="
+try {
+    $firewallRules = Get-NetFirewallRule
+    foreach ($rule in $firewallRules) {
+        $firewallData += [PSCustomObject]@{
+            Name         = $rule.Name
+            DisplayName  = $rule.DisplayName
+            Enabled      = $rule.Enabled
+            Direction    = $rule.Direction
+            Action       = $rule.Action
+            Profile      = $rule.Profile
+            Protocol     = $rule.Protocol
+            LocalPort    = $rule.LocalPort
+            RemotePort   = $rule.RemotePort
+            LocalAddress = $rule.LocalAddress
+            RemoteAddress= $rule.RemoteAddress
+        }
+    }
+} catch {
+    Write-Output "Error retrieving firewall rules: $_"
+}
+
+# Group Membership
+Write-Output "=== Group Membership ==="
+try {
+    $groups = Get-LocalGroup
+    foreach ($group in $groups) {
+        $members = Get-LocalGroupMember -Group $group.Name
+        foreach ($member in $members) {
+            $groupMembershipData += [PSCustomObject]@{
+                GroupName   = $group.Name
+                MemberName  = $member.Name
+            }
+        }
+    }
+} catch {
+    Write-Output "Error retrieving group membership: $_"
+}
+
+# Password Policies
+Write-Output "=== Password Policies ==="
+try {
+    $passwordPolicies = Get-ADDefaultDomainPasswordPolicy
+    $passwordPolicyData += [PSCustomObject]@{
+        MinPasswordLength          = $passwordPolicies.MinPasswordLength
+        MaxPasswordAge             = $passwordPolicies.MaxPasswordAge
+        MinPasswordAge             = $passwordPolicies.MinPasswordAge
+        PasswordHistoryCount       = $passwordPolicies.PasswordHistoryCount
+        ComplexityEnabled          = $passwordPolicies.ComplexityEnabled
+        ReversibleEncryptionEnabled= $passwordPolicies.ReversibleEncryptionEnabled
+    }
+} catch {
+    Write-Output "Error retrieving password policies: $_"
+}
+
+# Mounted Drives
+Write-Output "=== Mounted Drives ==="
+try {
+    $drives = Get-PSDrive -PSProvider FileSystem
+    foreach ($drive in $drives) {
+        $mountedDrivesData += [PSCustomObject]@{
+            Name        = $drive.Name
+            Used        = $drive.Used
+            Free        = $drive.Free
+            Provider    = $drive.Provider
+            Root        = $drive.Root
+        }
+    }
+} catch {
+    Write-Output "Error retrieving mounted drives: $_"
+}
+
+# File Shares
+Write-Output "=== File Shares ==="
+try {
+    $shares = Get-SmbShare
+    foreach ($share in $shares) {
+        $fileSharesData += [PSCustomObject]@{
+            Name        = $share.Name
+            Path        = $share.Path
+            Description = $share.Description
+        }
+    }
+} catch {
+    Write-Output "Error retrieving file shares: $_"
+}
+
+# Determine the script directory
+$scriptDir = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
+
+# Export data to CSV files in the script directory
+$userData | Export-Csv -Path "$scriptDir\UserEnumeration.csv" -NoTypeInformation
+$processData | Export-Csv -Path "$scriptDir\ProcessListing.csv" -NoTypeInformation
+$osData | Export-Csv -Path "$scriptDir\OSVersionInformation.csv" -NoTypeInformation
+$networkData | Export-Csv -Path "$scriptDir\NetworkInformation.csv" -NoTypeInformation
+$firewallData | Export-Csv -Path "$scriptDir\FirewallRules.csv" -NoTypeInformation
+$groupMembershipData | Export-Csv -Path "$scriptDir\GroupMembership.csv" -NoTypeInformation
+$passwordPolicyData | Export-Csv -Path "$scriptDir\PasswordPolicies.csv" -NoTypeInformation
+$mountedDrivesData | Export-Csv -Path "$scriptDir\MountedDrives.csv" -NoTypeInformation
+$fileSharesData | Export-Csv -Path "$scriptDir\FileShares.csv" -NoTypeInformation
+
+# End of Script
+Write-Output "=== Enumeration Complete ==="
